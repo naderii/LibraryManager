@@ -1,0 +1,1 @@
+using LibraryManager.Data; using LibraryManager.Models; namespace LibraryManager.Services; public class PaymentService { public void PayFine(int loanId,PaymentMethod method){using var d=new LibraryDbContext();var l=d.Loans.Find(loanId)??throw new Exception("رکورد یافت نشد");l.FinePaid=true;l.FinePaymentMethod=method;d.SaveChanges();} }

@@ -1,0 +1,1 @@
+namespace LibraryManager.Models; public class MembershipPayment { public int Id{get;set;} public int MemberId{get;set;} public Member Member{get;set;} public decimal Amount{get;set;} public DateTime PaymentDate{get;set;}=DateTime.Now; public PaymentMethod PaymentMethod{get;set;} public int PeriodMonths{get;set;}=12; public string Notes{get;set;}=""; }

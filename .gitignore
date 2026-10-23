@@ -1,0 +1,81 @@
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Build outputs
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+artifacts/
+
+# Visual Studio generated files
+Generated\ Files/
+*.cache
+*.pdb
+*.ilk
+*.obj
+*.tmp
+*.log
+
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+!packages/build/
+
+# Test results
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+
+# Coverage
+coverage/
+coverage.*
+*.coverage
+*.coveragexml
+
+# JetBrains Rider / ReSharper
+.idea/
+_ReSharper*/
+*.DotSettings.user
+
+# VS Code (personal workspace settings)
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+secrets.json
+appsettings.Local.json
+appsettings.Development.Local.json
+*.pfx
+*.p12
+*.key
+
+# Local database files - review before committing
+*.mdf
+*.ldf
+*.sqlite
+*.sqlite3
+*.db
+
+# Local backups
+*.bak
+*.backup
+*.dump
+
+# Publish output
+publish/

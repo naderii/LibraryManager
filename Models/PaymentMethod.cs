@@ -1,0 +1,1 @@
+namespace LibraryManager.Models; public enum PaymentMethod { Cash, Card }
