@@ -1,1 +1,43 @@
-using System.Windows;using LibraryManager.Models;namespace LibraryManager.Views;public partial class PaymentDialog:Window{public static PaymentMethod Method=PaymentMethod.Cash;static PaymentMethod selected=PaymentMethod.Cash;public PaymentDialog(string caption){InitializeComponent();Form.Children.Add(new System.Windows.Controls.TextBlock{Text=caption+" — مبلغ: "+LibraryManager.Services.SettingsService.Fee+" تومان",Margin=new Thickness(8)});var cash=new System.Windows.Controls.RadioButton{Content="نقدی",IsChecked=true,Margin=new Thickness(5)};var card=new System.Windows.Controls.RadioButton{Content="کارتی",Margin=new Thickness(5)};Form.Children.Add(cash);Form.Children.Add(card);Form.Children.Add(new System.Windows.Controls.TextBlock{Text="یادداشت",Margin=new Thickness(5)});var notes=new System.Windows.Controls.TextBox();Form.Children.Add(notes);var b=new System.Windows.Controls.Button{Content="تأیید پرداخت",Margin=new Thickness(5)};b.Click+=(s,e)=>{selected=cash.IsChecked==true?PaymentMethod.Cash:PaymentMethod.Card;Method=selected;DialogResult=true;};Form.Children.Add(b);var c=new System.Windows.Controls.Button{Content="انصراف"};c.Click+=(s,e)=>DialogResult=false;Form.Children.Add(c);}public static bool ShowPayment(string title){var w=new PaymentDialog(title);return w.ShowDialog()==true;}}
+using System.Windows;
+using System.Windows.Input;
+using LibraryManager.Models;
+
+namespace LibraryManager.Views;
+
+public partial class PaymentDialog : Window
+{
+    public static PaymentMethod Method { get; private set; } = PaymentMethod.Cash;
+
+    public PaymentDialog(string title, string amountInfo = "")
+    {
+        InitializeComponent();
+        TitleText.Text = title;
+        AmountText.Text = amountInfo;
+        Loaded += (_, _) => CashRadio.Focus();
+        KeyDown += OnKeyDown;
+    }
+
+    private void OnKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.F1) { CashRadio.IsChecked = true; e.Handled = true; }
+        else if (e.Key == Key.F2) { CardRadio.IsChecked = true; e.Handled = true; }
+        else if (e.Key == Key.Escape) { DialogResult = false; }
+    }
+
+    private void Ok_Click(object sender, RoutedEventArgs e)
+    {
+        Method = CashRadio.IsChecked == true ? PaymentMethod.Cash : PaymentMethod.Card;
+        DialogResult = true;
+    }
+
+    private void Cancel_Click(object sender, RoutedEventArgs e) => DialogResult = false;
+
+    /// <summary>
+    /// نمایش دیالوگ پرداخت. true اگر کاربر تأیید کرد.
+    /// </summary>
+    public static bool ShowPayment(string title, string amountInfo = "")
+    {
+        var dlg = new PaymentDialog(title, amountInfo) { Owner = Application.Current.MainWindow };
+        return dlg.ShowDialog() == true;
+    }
+}

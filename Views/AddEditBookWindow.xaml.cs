@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using LibraryManager.Models;
 using LibraryManager.Services;
@@ -20,6 +21,35 @@ public partial class AddEditBookWindow : Window
         _original = book is null ? new Book() : Copy(book);
         Heading.Text = book is null ? "ثبت کتاب جدید" : "ویرایش اطلاعات کتاب";
         BuildFields();
+        Loaded += (_, _) =>
+        {
+            if (_fields.TryGetValue(nameof(Book.Title), out var titleBox))
+            {
+                titleBox.Focus();
+                titleBox.SelectAll();
+            }
+        };
+        PreviewKeyDown += Window_PreviewKeyDown;
+    }
+
+    private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.S && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            SaveButton_Click(sender, e);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            DialogResult = false;
+            e.Handled = true;
+        }
+        else if (e.Key == Key.F4)
+        {
+            // دریافت اطلاعات با شابک
+            LookupIsbn_Click(SaveButton, e);
+            e.Handled = true;
+        }
     }
 
     private void BuildFields()
@@ -69,6 +99,26 @@ public partial class AddEditBookWindow : Window
                 TextWrapping = spec.Multiline ? TextWrapping.Wrap : TextWrapping.NoWrap,
                 VerticalScrollBarVisibility = spec.Multiline ? ScrollBarVisibility.Auto : ScrollBarVisibility.Disabled
             };
+            if (!spec.Multiline)
+            {
+                box.KeyDown += (s, e) =>
+                {
+                    if (e.Key == Key.Enter)
+                    {
+                        e.Handled = true;
+                        // آخرین فیلد غیر چندخطی قبل از توضیحات → ذخیره
+                        if (spec.Key == nameof(Book.Edition) || spec.Key == nameof(Book.CoverUrl))
+                        {
+                            // رفتن به فیلد بعدی
+                            box.MoveFocus(new TraversalRequest(FocusNavigationDirection.Next));
+                        }
+                        else
+                        {
+                            box.MoveFocus(new TraversalRequest(FocusNavigationDirection.Next));
+                        }
+                    }
+                };
+            }
             Grid.SetRow(box, row);
             Grid.SetColumn(box, 1);
             FieldsGrid.Children.Add(box);
@@ -105,25 +155,69 @@ public partial class AddEditBookWindow : Window
                 return;
             }
 
-            if (sender is Button button) { button.IsEnabled = false; button.Content = "در حال جست‌وجو..."; }
-            var metadata = await _isbnLookup.LookupAsync(isbn);
-            if (metadata is null)
+            // چک تکراری بودن شابک در سیستم
+            var bookService = new BookService();
+            if (bookService.IsbnExists(isbn, _original.Id))
             {
-                MessageBox.Show(this, "اطلاعاتی برای این شابک پیدا نشد. اتصال اینترنت و صحت شابک را بررسی کنید.", "نتیجه جست‌وجو", MessageBoxButton.OK, MessageBoxImage.Information);
+                var existing = bookService.FindByIsbn(isbn)!;
+                MessageBox.Show(this,
+                    "این شابک قبلاً در سیستم ثبت شده است.\n\n" +
+                    $"عنوان: {existing.Title}\n" +
+                    $"نویسنده: {existing.Author}\n" +
+                    $"شناسه: {existing.Id}",
+                    "شابک تکراری", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
-            // Preserve every field already entered by the user; only fill blanks.
-            FillIfBlank(nameof(Book.Title), metadata.Title);
-            FillIfBlank(nameof(Book.Author), metadata.Authors);
-            FillIfBlank(nameof(Book.Publisher), metadata.Publisher);
-            FillIfBlank(nameof(Book.Category), metadata.Categories);
-            FillIfBlank(nameof(Book.Description), metadata.Description);
-            FillIfBlank(nameof(Book.Language), metadata.Language);
-            FillIfBlank(nameof(Book.CoverUrl), metadata.CoverUrl);
-            FillIfBlank(nameof(Book.PageCount), metadata.PageCount > 0 ? metadata.PageCount.ToString() : "");
-            FillIfBlank(nameof(Book.PublicationYear), ExtractYear(metadata.PublishedDate));
-            MessageBox.Show(this, "اطلاعات پیدا‌شده به فیلدهای خالی اضافه شد. لطفاً قبل از ذخیره بررسی کنید؛ اطلاعات اینترنتی ممکن است ناقص باشد.", "تکمیل اطلاعات", MessageBoxButton.OK, MessageBoxImage.Information);
+            // چک اینترنت قبل از هر کوئری
+            if (sender is Button button) { button.IsEnabled = false; button.Content = "بررسی اتصال..."; }
+            if (!await IsbnLookupService.IsOnlineAsync())
+            {
+                MessageBox.Show(this,
+                    "اتصال اینترنت برقرار نیست.\n\nبدون اینترنت امکان دریافت اطلاعات از منابع آنلاین وجود ندارد.\nلطفاً اتصال را بررسی کنید یا فیلدها را دستی پر کنید.",
+                    "بدون اینترنت", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            if (sender is Button btn2) btn2.Content = "در حال جست‌وجو...";
+            var results = await _isbnLookup.LookupAllAsync(isbn);
+
+            if (results.Count == 0)
+            {
+                MessageBox.Show(this,
+                    "اطلاعاتی برای این شابک در منابع آنلاین پیدا نشد.\n\n" +
+                    "• شابک را دوباره بررسی کنید\n" +
+                    "• برخی کتاب‌های ایرانی در بانک‌های عمومی ثبت نشده‌اند؛ فیلدها را دستی پر کنید",
+                    "نتیجه جست‌وجو", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            BookMetadata? chosen = null;
+            if (results.Count == 1)
+            {
+                chosen = results[0];
+            }
+            else
+            {
+                // چند منبع پیدا کرده — انتخاب کاربر
+                chosen = ShowSourcePicker(results);
+                if (chosen is null) return; // کاربر لغو کرد
+            }
+
+            // فقط فیلدهای خالی را پر کن
+            FillIfBlank(nameof(Book.Title), chosen.Title);
+            FillIfBlank(nameof(Book.Author), chosen.Authors);
+            FillIfBlank(nameof(Book.Publisher), chosen.Publisher);
+            FillIfBlank(nameof(Book.Category), chosen.Categories);
+            FillIfBlank(nameof(Book.Description), chosen.Description);
+            FillIfBlank(nameof(Book.Language), chosen.Language);
+            FillIfBlank(nameof(Book.CoverUrl), chosen.CoverUrl);
+            FillIfBlank(nameof(Book.PageCount), chosen.PageCount > 0 ? chosen.PageCount.ToString() : "");
+            FillIfBlank(nameof(Book.PublicationYear), ExtractYear(chosen.PublishedDate));
+
+            MessageBox.Show(this,
+                $"اطلاعات از «{chosen.SourceName}» به فیلدهای خالی اضافه شد.\nلطفاً قبل از ذخیره بررسی کنید.",
+                "تکمیل اطلاعات", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
         {
@@ -133,6 +227,135 @@ public partial class AddEditBookWindow : Window
         {
             if (sender is Button button) { button.IsEnabled = true; button.Content = "دریافت اطلاعات از اینترنت با شابک"; }
         }
+    }
+
+    /// <summary>
+    /// پنجره ساده برای انتخاب یکی از نتایج چندمنبعی
+    /// </summary>
+    private BookMetadata? ShowSourcePicker(List<BookMetadata> results)
+    {
+        var win = new Window
+        {
+            Title = "انتخاب منبع اطلاعات",
+            Width = 560,
+            Height = 420,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Owner = this,
+            FlowDirection = FlowDirection.RightToLeft,
+            FontFamily = new FontFamily("Tahoma"),
+            Background = new SolidColorBrush(Color.FromRgb(243, 246, 250))
+        };
+
+        var root = new DockPanel { Margin = new Thickness(16) };
+        var header = new TextBlock
+        {
+            Text = $"برای این شابک {results.Count} منبع پیدا شد. یکی را انتخاب کنید:",
+            FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(0, 0, 0, 12),
+            TextWrapping = TextWrapping.Wrap
+        };
+        DockPanel.SetDock(header, Dock.Top);
+        root.Children.Add(header);
+
+        var list = new ListBox
+        {
+            Margin = new Thickness(0, 0, 0, 12),
+            DisplayMemberPath = "SummaryLine"
+        };
+        foreach (var r in results) list.Items.Add(r);
+        list.SelectedIndex = 0;
+        root.Children.Add(list);
+
+        var buttons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Margin = new Thickness(0, 8, 0, 0)
+        };
+        DockPanel.SetDock(buttons, Dock.Bottom);
+
+        BookMetadata? selected = null;
+        var ok = new Button
+        {
+            Content = "انتخاب و پر کردن فیلدها",
+            Padding = new Thickness(16, 8, 16, 8),
+            Margin = new Thickness(0, 0, 8, 0),
+            Background = new SolidColorBrush(Color.FromRgb(23, 107, 135)),
+            Foreground = Brushes.White,
+            BorderThickness = new Thickness(0)
+        };
+        ok.Click += (_, _) =>
+        {
+            selected = list.SelectedItem as BookMetadata;
+            win.DialogResult = true;
+        };
+        var cancel = new Button
+        {
+            Content = "انصراف",
+            Padding = new Thickness(16, 8, 16, 8)
+        };
+        cancel.Click += (_, _) => win.DialogResult = false;
+        buttons.Children.Add(ok);
+        buttons.Children.Add(cancel);
+        root.Children.Add(buttons);
+
+        // جزئیات منبع انتخاب‌شده
+        var detail = new TextBlock
+        {
+            Margin = new Thickness(0, 0, 0, 8),
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = new SolidColorBrush(Color.FromRgb(71, 85, 105)),
+            FontSize = 12
+        };
+        DockPanel.SetDock(detail, Dock.Bottom);
+        root.Children.Add(detail);
+
+        void UpdateDetail()
+        {
+            if (list.SelectedItem is BookMetadata m)
+            {
+                detail.Text =
+                    $"منبع: {m.SourceName}\n" +
+                    $"عنوان: {m.Title}\n" +
+                    $"نویسنده: {m.Authors}\n" +
+                    $"ناشر: {m.Publisher}\n" +
+                    $"سال: {m.PublishedDate}\n" +
+                    $"صفحات: {(m.PageCount > 0 ? m.PageCount.ToString() : "—")}";
+            }
+        }
+        list.SelectionChanged += (_, _) => UpdateDetail();
+        UpdateDetail();
+
+        // ترتیب: header, detail+buttons bottom, list fill
+        // ساده‌تر: از Grid استفاده کنیم
+        var grid = new Grid();
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        Grid.SetRow(header, 0);
+        Grid.SetRow(list, 1);
+        Grid.SetRow(detail, 2);
+        Grid.SetRow(buttons, 3);
+        // بازسازی
+        var g = new Grid { Margin = new Thickness(16) };
+        g.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        g.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        g.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        g.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        g.Children.Add(header); Grid.SetRow(header, 0);
+        g.Children.Add(list); Grid.SetRow(list, 1);
+        g.Children.Add(detail); Grid.SetRow(detail, 2);
+        g.Children.Add(buttons); Grid.SetRow(buttons, 3);
+        win.Content = g;
+
+        list.MouseDoubleClick += (_, _) =>
+        {
+            selected = list.SelectedItem as BookMetadata;
+            win.DialogResult = true;
+        };
+
+        return win.ShowDialog() == true ? selected : null;
     }
 
     private void FillIfBlank(string key, string? value)

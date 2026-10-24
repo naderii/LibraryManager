@@ -1,1 +1,29 @@
-<Window x:Class="LibraryManager.Views.PaymentDialog" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="پرداخت" Width="480" Height="520" WindowStartupLocation="CenterOwner"><StackPanel x:Name="Form" Margin="15"/></Window>
+<Window x:Class="LibraryManager.Views.PaymentDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="پرداخت" Width="420" Height="280" WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize" ShowInTaskbar="False"
+        FlowDirection="RightToLeft">
+  <Grid Margin="20">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+    <TextBlock x:Name="TitleText" FontSize="18" FontWeight="Bold" Foreground="#183B56" Margin="0,0,0,8"/>
+    <TextBlock x:Name="AmountText" Grid.Row="1" FontSize="15" Foreground="#176B87" Margin="0,0,0,16"/>
+    <StackPanel Grid.Row="2">
+      <TextBlock Text="روش پرداخت" Margin="0,0,0,6" FontWeight="SemiBold"/>
+      <StackPanel Orientation="Horizontal">
+        <RadioButton x:Name="CashRadio" Content="نقدی (F1)" IsChecked="True" Margin="0,0,24,0" GroupName="Pay" FontSize="14"/>
+        <RadioButton x:Name="CardRadio" Content="کارت (F2)" GroupName="Pay" FontSize="14"/>
+      </StackPanel>
+      <TextBlock Text="Enter = تأیید  |  Esc = انصراف" Foreground="#64748B" FontSize="11" Margin="0,16,0,0"/>
+    </StackPanel>
+    <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,12,0,0">
+      <Button x:Name="OkBtn" Content="تأیید پرداخت" IsDefault="True" Click="Ok_Click" MinWidth="120" Margin="0,0,8,0"/>
+      <Button Content="انصراف" IsCancel="True" Style="{StaticResource SecondaryButton}" MinWidth="90" Click="Cancel_Click"/>
+    </StackPanel>
+  </Grid>
+</Window>
